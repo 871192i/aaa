@@ -15,92 +15,48 @@ if st.button("Clear Cache"):
     st.success("Cache cleared!")
 
 import streamlit as st
-import pandas as pd
+from datetime import datetime
 
-def generate_matrix():
-    # สร้าง Matrix 10x10 (ตัวเลข 00-99)
-    matrix = [[f"{i * 10 + j:02}" for j in range(10)] for i in range(10)]
-    return matrix
+def calculate_age(day, month, year, use_buddhist_year):
+    if use_buddhist_year:  # ถ้าเป็น พ.ศ. แปลงเป็น ค.ศ.
+        year -= 543
 
-def flatten_matrix(matrix):
-    # แปลง Matrix เป็น List
-    return [num for row in matrix for num in row]
+    birth_date = datetime(year, month, day)
+    today = datetime.today()
 
-def filter_069(numbers):
-    # เลือกเฉพาะตัวเลขที่มี 0, 6, หรือ 9 อยู่ในตัวเลขนั้น
-    return [num for num in numbers if '0' in num or '6' in num or '9' in num]
+    # คำนวณปี เดือน วัน
+    years = today.year - birth_date.year
+    months = today.month - birth_date.month
+    days = today.day - birth_date.day
 
-# สร้าง Matrix ตัวเลข 00-99
-matrix = generate_matrix()
-all_numbers = flatten_matrix(matrix)
+    if days < 0:
+        months -= 1
+        days += (birth_date.replace(month=birth_date.month + 1, day=1) - birth_date).days
 
-# ส่วนของการเลือกตัวเลขที่ต้องการขีดฆ่า
-st.title("ตารางตัวเลข 10x10")
-selected_numbers = st.multiselect("เลือกตัวเลขที่ต้องการขีดฆ่า:", all_numbers)
+    if months < 0:
+        years -= 1
+        months += 12
 
-# คำนวณตัวเลขที่เหลือ
-remaining_numbers = sorted(set(all_numbers) - set(selected_numbers))
+    return years, months, days
 
-# ส่วนของการเลือก "เลขที่ออกงวดที่แล้ว" จากตัวเลขที่เหลือ
-last_draw_numbers = st.multiselect(
-    "เลขที่ออกงวดที่แล้ว:", remaining_numbers
-)
+# ส่วน UI
+st.title("Age Calculator (คำนวณอายุ)")
 
-# แสดง Matrix ที่มีการขีดฆ่าตัวเลขที่ถูกเลือก
-st.subheader("Matrix 10x10 พร้อมตัวเลขที่ถูกขีดฆ่า")
-matrix_with_strike = [
-    [num if num not in selected_numbers else "X" for num in row]
-    for row in matrix
-]
-df_matrix = pd.DataFrame(matrix_with_strike)
-st.dataframe(df_matrix)
+# Input UI
+day = st.number_input("วัน", min_value=1, max_value=31, value=1)
+month = st.number_input("เดือน", min_value=1, max_value=12, value=1)
+year = st.number_input("ปี", min_value=1900, max_value=datetime.now().year + 543, value=2518)
 
-# แสดงรายการตัวเลขที่เหลือในรูปแบบตาราง
-st.subheader("รายการตัวเลขที่เหลือ")
-remaining_df = pd.DataFrame(
-    [remaining_numbers[i:i + 10] for i in range(0, len(remaining_numbers), 10)]
-)
-st.dataframe(remaining_df)
+# ใช้ radio button แทน checkbox
+era = st.radio("เลือกประเภทปี:", ["พ.ศ.", "ค.ศ."])
+use_buddhist_year = (era == "พ.ศ.")
 
-# แสดงจำนวนตัวเลขที่เหลือทั้งหมด
-st.write(f"จำนวนตัวเลขที่เหลือทั้งหมด: {len(remaining_numbers)}")
+# ปุ่มคำนวณ
+if st.button("คำนวณอายุ"):
+    try:
+        years, months, days = calculate_age(day, month, year, use_buddhist_year)
+        st.success(f"อายุของคุณ: {years} ปี {months} เดือน {days} วัน")
+    except ValueError:
+        st.error("วันที่ไม่ถูกต้อง! กรุณาตรวจสอบข้อมูลอีกครั้ง")
 
-# รับค่าจำนวนเงิน/ตัว (บาท) จากผู้ใช้
-price_per_number = st.number_input("จำนวนเงิน/ตัว (บาท)", min_value=0.0, value=10.0)
-
-# คำนวณจำนวนเงินทั้งหมด
-total_cost = len(remaining_numbers) * price_per_number
-
-# รับค่ารางวัล/บาท จากผู้ใช้
-reward_per_baht = st.number_input("รางวัล/บาท", min_value=0.0, value=75.0)
-
-# คำนวณเงินรางวัลที่อาจได้รับ (ต่อเลขที่ถูก)
-potential_reward = reward_per_baht * price_per_number
-
-# คำนวณจุด breaking point (จุดเท่าทุน)
-breaking_point = max(0, (total_cost // potential_reward) + 1)
-
-# แสดงผลลัพธ์
-st.subheader("ผลการคำนวณ")
-st.write(f"ต้องใช้เงินทั้งหมด: {total_cost:,.2f} บาท")
-st.write(f"ถูกรางวัล (บาท): {potential_reward:,.2f} บาท ต่อการถูก 1 เลข")
-
-# แสดงจำนวนตัวเลขที่ต้องตัดออกเพื่อให้ได้กำไร
-st.subheader(f"เหลือตัวเลขอีก {breaking_point} (ตัว) ที่ต้องตัดออก เพื่อให้มีกำไร 1 บาทขึ้นไป")
-
-# ส่วนของการสร้าง "ตาราง 0 6 9"
-numbers_069 = filter_069(all_numbers)
-
-st.subheader("ตาราง 0 6 9")
-df_069 = pd.DataFrame(
-    [numbers_069[i:i + 10] for i in range(0, len(numbers_069), 10)]
-)
-st.dataframe(df_069)
-
-# แสดงจำนวนตัวเลขในตาราง 0 6 9
-st.write(f"จำนวนตัวเลขในตาราง 0 6 9: {len(numbers_069)}")
-
-# คำนวณเงินลงทุนทั้งหมดสำหรับตาราง 0 6 9
-investment_069 = len(numbers_069) * price_per_number
-st.write(f"ใช้เงินลงทุน (บาท) สำหรับตาราง 0 6 9: {investment_069:,.2f} บาท")
 
